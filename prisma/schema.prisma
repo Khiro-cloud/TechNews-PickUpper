@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id          String     @id @default(cuid())
+  key         String     @unique
+  name        String
+  baseUrl     String?
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  articles    Article[]
+  crawlLogs   CrawlLog[]
+}
+
+model Article {
+  id                 String    @id @default(cuid())
+  sourceId           String
+  sourceArticleId    String?
+  title              String
+  translatedTitle    String?
+  canonicalUrl       String?
+  titleFingerprint   String?
+  url                String    @unique
+  author             String?
+  summary            String?
+  score              Int?
+  tags               String?
+  thumbnailUrl       String?
+  thumbnailFetchedAt DateTime?
+  publishedAt        DateTime?
+  fetchedAt          DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  source             Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, sourceArticleId])
+  @@index([sourceId])
+  @@index([publishedAt])
+  @@index([createdAt])
+  @@index([canonicalUrl])
+  @@index([titleFingerprint])
+}
+
+model CrawlLog {
+  id          String   @id @default(cuid())
+  sourceId    String
+  fetched     Int
+  created     Int
+  skipped     Int
+  error       String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime @default(now())
+
+  source      Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([startedAt])
+  @@index([sourceId, startedAt])
+}
