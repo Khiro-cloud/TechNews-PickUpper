@@ -19,9 +19,7 @@ export function SelectedArticles({ articles }: SelectedArticlesProps) {
       </div>
 
       {articles.length === 0 ? (
-        <div className="rounded-2xl bg-paper px-4 py-5 text-sm text-black/60">
-          記事が選択されていません。
-        </div>
+        <div className="rounded-2xl bg-paper px-4 py-5 text-sm text-black/60">記事が選択されていません。</div>
       ) : (
         <div className="grid gap-3">
           {articles.map((article) => (

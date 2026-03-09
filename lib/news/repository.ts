@@ -9,6 +9,7 @@ type OverviewFilters = {
 };
 
 const SOURCE_ORDER = Object.keys(SOURCE_DEFINITIONS);
+const PER_SOURCE_LIMIT = 40;
 
 function formatPublishedAt(date: Date | null): string {
   if (!date) {
@@ -43,9 +44,42 @@ function normalizeQuery(query?: string) {
 }
 
 function sortBySourceOrder<T extends { sourceKey: string }>(items: T[]) {
-  return [...items].sort((left, right) => {
-    return SOURCE_ORDER.indexOf(left.sourceKey) - SOURCE_ORDER.indexOf(right.sourceKey);
-  });
+  return [...items].sort((left, right) => SOURCE_ORDER.indexOf(left.sourceKey) - SOURCE_ORDER.indexOf(right.sourceKey));
+}
+
+function normalizeArticles(
+  articles: Array<{
+    id: string;
+    title: string;
+    translatedTitle: string | null;
+    url: string;
+    summary: string | null;
+    author: string | null;
+    score: number | null;
+    thumbnailUrl: string | null;
+    publishedAt: Date | null;
+    source: {
+      key: string;
+      name: string;
+    };
+  }>,
+): NormalizedArticle[] {
+  return articles.map((article) => ({
+    id: article.id,
+    title: article.translatedTitle ?? article.title,
+    originalTitle: article.title,
+    url: article.url,
+    summary: article.summary,
+    author: article.author,
+    score: article.score,
+    thumbnailUrl: article.thumbnailUrl,
+    publishedAt: article.publishedAt?.toISOString() ?? null,
+    publishedAtLabel: formatPublishedAt(article.publishedAt),
+    source: {
+      key: article.source.key,
+      name: article.source.name,
+    },
+  }));
 }
 
 export async function getArticleOverview(filters: OverviewFilters = {}): Promise<ArticleOverview> {
@@ -54,64 +88,56 @@ export async function getArticleOverview(filters: OverviewFilters = {}): Promise
   const sort = filters.sort === "score" ? "score" : "latest";
 
   try {
-    const articles = await prisma.article.findMany({
-      include: {
-        source: true,
-      },
-      where: {
-        ...(source ? { source: { key: source } } : {}),
-        ...(query
-          ? {
-              OR: [
-                { title: { contains: query } },
-                { translatedTitle: { contains: query } },
-                { summary: { contains: query } },
-              ],
-            }
-          : {}),
-      },
-      orderBy:
-        sort === "score"
-          ? [{ score: "desc" }, { publishedAt: "desc" }, { createdAt: "desc" }]
-          : [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      take: 120,
-    });
+    const whereClause = {
+      ...(query
+        ? {
+            OR: [{ title: { contains: query } }, { translatedTitle: { contains: query } }, { summary: { contains: query } }],
+          }
+        : {}),
+    };
 
-    const normalized: NormalizedArticle[] = articles.map((article) => ({
-      id: article.id,
-      title: article.translatedTitle ?? article.title,
-      originalTitle: article.title,
-      url: article.url,
-      summary: article.summary,
-      author: article.author,
-      score: article.score,
-      thumbnailUrl: article.thumbnailUrl,
-      publishedAt: article.publishedAt?.toISOString() ?? null,
-      publishedAtLabel: formatPublishedAt(article.publishedAt),
-      source: {
-        key: article.source.key,
-        name: article.source.name,
-      },
-    }));
+    const sourceKeys = source ? [source] : SOURCE_ORDER;
+    const groups: ArticleGroup[] = [];
+    let totalArticles = 0;
+    let latestFetchedAt: Date | null = null;
 
-    const groupsMap = new Map<string, ArticleGroup>();
-    for (const article of normalized) {
-      const existing = groupsMap.get(article.source.key);
-      if (existing) {
-        existing.articles.push(article);
-      } else {
-        groupsMap.set(article.source.key, {
-          sourceKey: article.source.key,
-          sourceName: article.source.name,
-          articles: [article],
-        });
+    for (const sourceKey of sourceKeys) {
+      const articles = await prisma.article.findMany({
+        include: {
+          source: true,
+        },
+        where: {
+          source: { key: sourceKey },
+          ...whereClause,
+        },
+        orderBy:
+          sort === "score"
+            ? [{ score: "desc" }, { publishedAt: "desc" }, { createdAt: "desc" }]
+            : [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: PER_SOURCE_LIMIT,
+      });
+
+      if (articles.length === 0) {
+        continue;
+      }
+
+      const normalized = normalizeArticles(articles);
+      groups.push({
+        sourceKey,
+        sourceName: articles[0].source.name,
+        articles: normalized,
+      });
+      totalArticles += normalized.length;
+
+      const sourceLatestFetched = articles.reduce<Date | null>((latest, article) => {
+        if (!latest) return article.fetchedAt;
+        return article.fetchedAt > latest ? article.fetchedAt : latest;
+      }, null);
+
+      if (sourceLatestFetched && (!latestFetchedAt || sourceLatestFetched > latestFetchedAt)) {
+        latestFetchedAt = sourceLatestFetched;
       }
     }
-
-    const latestFetched = articles.reduce<Date | null>((latest, article) => {
-      if (!latest) return article.fetchedAt;
-      return article.fetchedAt > latest ? article.fetchedAt : latest;
-    }, null);
 
     const latestLogsRaw = await prisma.crawlLog.findMany({
       include: {
@@ -137,13 +163,11 @@ export async function getArticleOverview(filters: OverviewFilters = {}): Promise
       });
     }
 
-    const groups = sortBySourceOrder(Array.from(groupsMap.values()));
-
     return {
-      groups,
-      lastFetchedAt: latestFetched?.toISOString() ?? null,
-      lastFetchedAtLabel: formatDateTime(latestFetched),
-      totalArticles: normalized.length,
+      groups: sortBySourceOrder(groups),
+      lastFetchedAt: latestFetchedAt?.toISOString() ?? null,
+      lastFetchedAtLabel: formatDateTime(latestFetchedAt),
+      totalArticles,
       latestCrawlLogs: sortBySourceOrder(latestCrawlLogs),
       filters: {
         query,

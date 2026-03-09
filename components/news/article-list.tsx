@@ -9,7 +9,7 @@ export function ArticleList({ groups }: ArticleListProps) {
   if (groups.length === 0) {
     return (
       <section className="rounded-[1.75rem] border border-dashed border-black/10 bg-white/60 p-10 text-center text-sm text-black/60">
-        条件に一致する記事はありません。検索条件を見直すか、クロールを実行してください。
+        条件に一致する記事がありません。検索条件を見直すか、クロールを更新してください。
       </section>
     );
   }
