@@ -1,93 +1,73 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
+import { prisma } from "@/lib/prisma";
 
 type AccessCounterSnapshot = {
   total: number;
   updatedAt: string | null;
 };
 
-const counterFilePath = path.join(process.cwd(), "data", "access-counter.json");
+const COUNTER_KEY = "home-access";
+const INITIAL_TOTAL = 150;
 
-let writeQueue = Promise.resolve();
+async function ensureCounterReady() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SiteCounter" (
+      "key" TEXT PRIMARY KEY,
+      "total" INTEGER NOT NULL DEFAULT 0,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-async function ensureCounterFile() {
-  await mkdir(path.dirname(counterFilePath), { recursive: true });
-
-  try {
-    await readFile(counterFilePath, "utf8");
-  } catch (error) {
-    const fileMissing =
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT";
-
-    if (!fileMissing) {
-      throw error;
-    }
-
-    await writeFile(
-      counterFilePath,
-      JSON.stringify(
-        {
-          total: 0,
-          updatedAt: null,
-        },
-        null,
-        2,
-      ),
-      "utf8",
-    );
-  }
+  await prisma.$executeRaw`
+    INSERT INTO "SiteCounter" ("key", "total", "updatedAt")
+    VALUES (${COUNTER_KEY}, ${INITIAL_TOTAL}, NOW())
+    ON CONFLICT ("key") DO NOTHING
+  `;
 }
 
-async function readSnapshot(): Promise<AccessCounterSnapshot> {
-  await ensureCounterFile();
-
-  try {
-    const content = await readFile(counterFilePath, "utf8");
-    const parsed = JSON.parse(content) as Partial<AccessCounterSnapshot>;
-
+function normalizeSnapshot(
+  row:
+    | {
+        total: number;
+        updatedAt: Date;
+      }
+    | undefined,
+): AccessCounterSnapshot {
+  if (!row) {
     return {
-      total: typeof parsed.total === "number" && Number.isFinite(parsed.total) ? parsed.total : 0,
-      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
-    };
-  } catch {
-    return {
-      total: 0,
+      total: INITIAL_TOTAL,
       updatedAt: null,
     };
   }
-}
 
-async function writeSnapshot(snapshot: AccessCounterSnapshot) {
-  await writeFile(counterFilePath, JSON.stringify(snapshot, null, 2), "utf8");
+  return {
+    total: row.total,
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }
 
 export async function getAccessCounter() {
-  return readSnapshot();
+  await ensureCounterReady();
+
+  const rows = await prisma.$queryRaw<Array<{ total: number; updatedAt: Date }>>`
+    SELECT "total", "updatedAt"
+    FROM "SiteCounter"
+    WHERE "key" = ${COUNTER_KEY}
+    LIMIT 1
+  `;
+
+  return normalizeSnapshot(rows[0]);
 }
 
 export async function incrementAccessCounter() {
-  let nextSnapshot: AccessCounterSnapshot = {
-    total: 0,
-    updatedAt: null,
-  };
+  await ensureCounterReady();
 
-  writeQueue = writeQueue
-    .catch(() => undefined)
-    .then(async () => {
-      const current = await readSnapshot();
+  const rows = await prisma.$queryRaw<Array<{ total: number; updatedAt: Date }>>`
+    UPDATE "SiteCounter"
+    SET "total" = "total" + 1,
+        "updatedAt" = NOW()
+    WHERE "key" = ${COUNTER_KEY}
+    RETURNING "total", "updatedAt"
+  `;
 
-      nextSnapshot = {
-        total: current.total + 1,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await writeSnapshot(nextSnapshot);
-    });
-
-  await writeQueue;
-
-  return nextSnapshot;
+  return normalizeSnapshot(rows[0]);
 }
