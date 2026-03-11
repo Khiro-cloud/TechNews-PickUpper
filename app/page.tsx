@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccessCounter } from "@/components/access-counter";
 import { SelectionBar } from "@/components/mail/selection-bar";
 import { CrawlPanel } from "@/components/news/crawl-panel";
 import { ArticleList } from "@/components/news/article-list";
@@ -30,9 +31,12 @@ export default async function Home({ searchParams }: HomeProps) {
   return (
     <main className="rabbit-cursor mx-auto flex min-h-screen max-w-[1500px] flex-col gap-6 px-6 py-10">
       <header className="flex flex-col gap-5 rounded-[2rem] border border-black/5 bg-white/80 p-8 shadow-card backdrop-blur">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-[0.3em] text-accent">Tech News Digest</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-ink">TechNews PickUpper</h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm uppercase tracking-[0.3em] text-accent">Tech News Digest</p>
+            <h1 className="text-4xl font-semibold tracking-tight text-ink">TechNews PickUpper</h1>
+          </div>
+          <AccessCounter />
         </div>
         <div className="grid gap-3 rounded-[1.5rem] bg-paper/80 p-5 sm:grid-cols-[1fr_auto] sm:items-end">
           <div className="space-y-1">
