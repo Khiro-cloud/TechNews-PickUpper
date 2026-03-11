@@ -13,7 +13,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
   const isSelected = selectedArticleIds.includes(article.id);
 
   return (
-    <article className="overflow-hidden rounded-[1.25rem] border border-black/5 bg-[#fffdf9] p-4">
+    <article className="max-w-full rounded-[1.25rem] border border-black/5 bg-[#fffdf9] p-4">
       <div className="flex items-start gap-4">
         <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl bg-paper">
           {article.thumbnailUrl ? (
@@ -34,12 +34,12 @@ export function ArticleCard({ article }: ArticleCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 break-words text-[11px] uppercase tracking-[0.18em] text-black/45 [overflow-wrap:anywhere]">
             <span>{article.publishedAtLabel}</span>
-            {article.author ? <span>{article.author}</span> : null}
-            {article.score ? <span>score {article.score}</span> : null}
+            {article.author ? <span className="break-all">{article.author}</span> : null}
+            {article.score ? <span className="shrink-0">score {article.score}</span> : null}
           </div>
 
           <h3 className="mt-2 line-clamp-3 break-words text-[17px] font-semibold leading-6 text-ink [overflow-wrap:anywhere]">
-            <a className="hover:underline [overflow-wrap:anywhere]" href={article.url} rel="noreferrer" target="_blank">
+            <a className="block max-w-full hover:underline [overflow-wrap:anywhere]" href={article.url} rel="noreferrer" target="_blank">
               {article.title}
             </a>
           </h3>
