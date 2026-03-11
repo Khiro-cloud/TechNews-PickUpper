@@ -1,8 +1,8 @@
 "use client";
 
-import type { NormalizedArticle } from "@/lib/news/types";
-import { toggleSelectedArticleId } from "@/lib/mail/selection";
 import { useSelection } from "@/components/mail/use-selection";
+import { toggleSelectedArticleId } from "@/lib/mail/selection";
+import type { NormalizedArticle } from "@/lib/news/types";
 
 type ArticleCardProps = {
   article: NormalizedArticle;
@@ -55,17 +55,23 @@ export function ArticleCard({ article }: ArticleCardProps) {
           </p>
 
           <div className="mt-3">
-            <button
-              className={`rounded-full px-4 py-2 text-sm font-medium ${
-                isSelected ? "bg-ink text-white" : "bg-accent text-white"
+            <label
+              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+                isSelected
+                  ? "border-accent/25 bg-accent/10 text-ink"
+                  : "border-black/10 bg-white text-black/65 hover:border-accent/30 hover:text-ink"
               }`}
-              onClick={() => {
-                toggleSelectedArticleId(article.id);
-              }}
-              type="button"
             >
-              {isSelected ? "追加済み" : "メールに追加"}
-            </button>
+              <input
+                checked={isSelected}
+                className="h-4 w-4 rounded border-black/20 text-accent focus:ring-accent"
+                onChange={() => {
+                  toggleSelectedArticleId(article.id);
+                }}
+                type="checkbox"
+              />
+              <span className="font-medium">メールに追加</span>
+            </label>
           </div>
         </div>
       </div>
